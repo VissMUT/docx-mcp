@@ -97,6 +97,35 @@ def setup_logging(debug_mode):
 # Initialize FastMCP server
 mcp = FastMCP("Word Document Server")
 
+# --- TOOL_WHITELIST: фильтр регистрируемых тулов ---
+# Если переменная задана (имена через запятую/пробел) — регистрируются ТОЛЬКО
+# перечисленные тулы, остальные 130+ из апстрима не видны клиентам (меньше
+# токенов в каждом запросе). Пустая/отсутствует — регистрируются все.
+import os as _os
+
+_TOOL_WHITELIST = set(
+    t for t in _os.environ.get("TOOL_WHITELIST", "").replace(",", " ").split() if t
+)
+_orig_mcp_tool = mcp.tool
+
+
+def _gated_tool(*args, **kwargs):
+    if len(args) == 1 and callable(args[0]) and not kwargs:
+        fn = args[0]
+        if not _TOOL_WHITELIST or fn.__name__ in _TOOL_WHITELIST:
+            return _orig_mcp_tool(fn)
+        return fn
+
+    def deco(fn):
+        if not _TOOL_WHITELIST or fn.__name__ in _TOOL_WHITELIST:
+            return _orig_mcp_tool(*args, **kwargs)(fn)
+        return fn
+
+    return deco
+
+
+mcp.tool = _gated_tool
+
 
 def register_tools():
     """Register all tools with the MCP server using FastMCP decorators."""
