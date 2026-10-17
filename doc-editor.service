@@ -1,0 +1,15 @@
+[Unit]
+Description=doc-editor MCP server (Word/DOCX editor, word-mcp-live fork)
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f doc-editor
+ExecStart=/bin/bash -c 'exec /usr/bin/docker run --name doc-editor --restart unless-stopped --network lobechat_default -p 127.0.0.1:9113:9113 -v /home/v1smut/doc-editor:/app -w /app -e MCP_TRANSPORT=streamable-http -e MCP_HOST=0.0.0.0 -e MCP_PORT=9113 -e MCP_PATH=/sse -e MCP_AUTHOR=V1sMUT -e MCP_AUTHOR_INITIALS=VS -e PGHOST=lobe-postgres -e PGDATABASE=lobechat -e PGUSER=postgres -e PGPASSWORD="$$(grep -E "^POSTGRES_PASSWORD=" /opt/lobechat/.env | head -1 | cut -d= -f2-)" -e RUSTFS_HOST=lobe-rustfs -e RUSTFS_BUCKET=lobe -e RUSTFS_SECRET_KEY="$$(grep -E "^RUSTFS_SECRET_KEY=" /opt/lobechat/.env | head -1 | cut -d= -f2-)" doc-editor:latest'
+ExecStop=/usr/bin/docker stop doc-editor
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
