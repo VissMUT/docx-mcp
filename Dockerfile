@@ -15,8 +15,8 @@ RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 \
  && chmod +x /usr/local/bin/anymd \
  && rm -f /tmp/anymd.tar.gz \
  && rm -rf /var/lib/apt/lists/* \
- && pip install --no-cache-dir \
-      fastmcp python-docx msoffcrypto-tool docx2pdf python-dotenv \
+  && pip install --no-cache-dir \
+      "fastmcp>=4,<5" "python-docx==1.2.0" msoffcrypto-tool docx2pdf python-dotenv \
       boto3 psycopg2-binary docxtpl
 
 # Эталон стилей pandoc (docx_build): TNR 12, поля A4, PAGE в футере
