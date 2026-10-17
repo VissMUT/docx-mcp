@@ -2,10 +2,9 @@
 Document utility functions for Word Document Server.
 """
 import json
+import re
 from typing import Dict, List, Any
 from docx import Document
-from docx.oxml.table import CT_Tbl
-from docx.oxml.text.paragraph import CT_P
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
@@ -545,6 +544,30 @@ def get_paragraph_style(el):
             return pStyle.attrib['w:val']
     return None
 
+# --- Helper: сравнение текста якоря (пробелы нормализуются, регистр не важен,
+# допускается номер заголовка перед текстом: «1.1 Текст» == «Текст»,
+# в т.ч. pandoc-слипшийся «1.1Текст») ---
+_ANCHOR_NUM_RE = re.compile(r'^(?:(?:\d+\.)*\d+\.?)\s*(.*)$', re.S)
+
+
+def _anchor_text_match(p_text, anchor):
+    n = re.sub(r'\s+', ' ', p_text or '').strip().lower()
+    a = re.sub(r'\s+', ' ', anchor or '').strip().lower()
+    if not a:
+        return False
+    if n == a:
+        return True
+    m_n = _ANCHOR_NUM_RE.match(n)
+    m_a = _ANCHOR_NUM_RE.match(a)
+    if m_n and m_n.group(1) == a:
+        return True
+    if m_a and m_a.group(1) == n:
+        return True
+    if m_n and m_a:
+        return m_n.group(1) == m_a.group(1)
+    return False
+
+
 # --- Main: Delete everything under a header until next heading/TOC ---
 def delete_block_under_header(doc, header_text):
     """
@@ -556,7 +579,7 @@ def delete_block_under_header(doc, header_text):
     header_idx = None
     
     for i, para in enumerate(doc.paragraphs):
-        if get_effective_text(para).strip().lower() == header_text.strip().lower():
+        if _anchor_text_match(get_effective_text(para), header_text):
             header_para = para
             header_idx = i
             break
@@ -609,9 +632,8 @@ def replace_paragraph_block_below_header(
     header_para = None
     header_idx = None
     for i, para in enumerate(doc.paragraphs):
-        para_text = get_effective_text(para).strip().lower()
         is_toc = is_toc_paragraph(para)
-        if para_text == header_text.strip().lower() and not is_toc:
+        if _anchor_text_match(get_effective_text(para), header_text) and not is_toc:
             header_para = para
             header_idx = i
             break
@@ -660,13 +682,13 @@ def replace_block_between_manual_anchors(
     end_idx = None
     # Find start anchor
     for i, el in enumerate(elements):
-        if el.tag == CT_P.tag:
+        if el.tag == qn('w:p'):
             p_text = "".join([node.text or '' for node in el.iter() if node.tag.endswith('}t')]).strip()
             if match_fn:
                 if match_fn(p_text, el):
                     start_idx = i
                     break
-            elif p_text == start_anchor_text.strip():
+            elif _anchor_text_match(p_text, start_anchor_text):
                 start_idx = i
                 break
     if start_idx is None:
@@ -675,20 +697,20 @@ def replace_block_between_manual_anchors(
     if end_anchor_text:
         for i in range(start_idx + 1, len(elements)):
             el = elements[i]
-            if el.tag == CT_P.tag:
+            if el.tag == qn('w:p'):
                 p_text = "".join([node.text or '' for node in el.iter() if node.tag.endswith('}t')]).strip()
                 if match_fn:
                     if match_fn(p_text, el, is_end=True):
                         end_idx = i
                         break
-                elif p_text == end_anchor_text.strip():
+                elif _anchor_text_match(p_text, end_anchor_text):
                     end_idx = i
                     break
     else:
         # Heuristic: next visually distinct paragraph (bold, all caps, or different font size), or end of document
         for i in range(start_idx + 1, len(elements)):
             el = elements[i]
-            if el.tag == CT_P.tag:
+            if el.tag == qn('w:p'):
                 # Check for bold, all caps, or font size
                 runs = [node for node in el.iter() if node.tag.endswith('}r')]
                 for run in runs:
@@ -711,7 +733,7 @@ def replace_block_between_manual_anchors(
     paras = doc.paragraphs
     anchor_idx = None
     for i, para in enumerate(paras):
-        if get_effective_text(para).strip() == start_anchor_text.strip():
+        if _anchor_text_match(get_effective_text(para), start_anchor_text):
             anchor_idx = i
             break
     if anchor_idx is None:
