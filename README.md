@@ -1,41 +1,190 @@
 # docx-mcp
 
-MCP-сервер для создания и редактирования документов Word (.docx) агентами LobeChat.
-Работает в Docker на Linux (streamable HTTP, stateless), файлы забирает из вложений
-чата (rustfs) и возвращает https-ссылкой в чат.
+MCP-сервер для работы с документами Microsoft Word (.docx) в среде Linux:
+создание и редактирование документов, нативные формулы OMML, таблицы,
+колонтитулы, режим исправлений (track changes), комментарии, сноски,
+защита документа.
 
-Основан на [ykarapazar/word-mcp-live](https://github.com/ykarapazar/word-mcp-live)
-(в свою очередь — форк [GongRzhe/Office-Word-MCP-Server](https://github.com/GongRzhe/Office-Word-MCP-Server)),
-лицензия MIT. Это самостоятельное репо с собственной историей.
+Транспорт — Streamable HTTP (FastMCP), поддерживается stateless-режим.
+Файлы загружаются из S3-совместимого хранилища (rustfs) или по ссылке,
+результат сохраняется в хранилище и возвращается в виде HTTPS-ссылки.
 
-## Наши добавления поверх word-mcp-live
+Проект основан на [word-mcp-live](https://github.com/ykarapazar/word-mcp-live)
+(Yüce Karapazar), который в свою очередь основан на
+[Office-Word-MCP-Server](https://github.com/GongRzhe/Office-Word-MCP-Server)
+(GongRzhe). Лицензия — MIT, см. [LICENSE](LICENSE).
 
-| Тулы | Назначение |
+## Возможности
+
+### Документы
+
+- `docx_open` — открыть документ из вложения, HTTPS-ссылки или по имени
+  файла из базы данных LobeChat; возвращает путь, используемый остальными
+  инструментами;
+- `docx_commit` — сохранить результат в хранилище и вернуть
+  HTTPS-ссылку с контрольной суммой sha256;
+- `docx_undo` — откат к последнему снимку (снимки создаются при
+  открытии и фиксации);
+- `docx_read` — структурное чтение: секции и поля, дерево заголовков,
+  диапазоны абзацев с индексами, сетка таблиц, колонтитулы, изображения;
+- `file_read` — чтение произвольных файлов (PDF, DOCX, XLSX, PPTX,
+  EPUB, HTML, изображения) в Markdown;
+- `create_document`, `copy_document`, `list_available_documents`,
+  `get_document_info`, `get_document_text`, `get_document_outline`,
+  `merge_documents`, `convert_to_pdf`.
+
+### Генерация
+
+- `docx_build` — сборка документа из pandoc-markdown (таблицы,
+  формулы `$...$` / `$$...$$`, оглавление, нумерация заголовков,
+  добавление разделов через `append`);
+- `docx_create` — пустой документ с базовым оформлением
+  (Times New Roman 12, поля, номер страницы в колонтитуле);
+- `docx_fill` — заполнение шаблона docxtpl (переменные `{{var}}`,
+  циклы, условия) из JSON;
+- `docx_append_block` — добавление блока (заголовки, абзацы, формулы)
+  в конец документа одним вызовом;
+- `add_heading`, `add_paragraph`, `add_table`, `add_picture`,
+  `add_page_break`, списки (`insert_numbered_list_near_text`).
+
+### Формулы
+
+- `docx_formula` — нативные формулы Word (OMML), LaTeX-нотация;
+  операции: список, вставка (в тело документа или в ячейку таблицы),
+  замена, удаление, очистка ячейки;
+- display-формулы оформляются таблицами-врезками 1×2 без границ:
+  формула по центру, номер — справа;
+- `docx_number_formulas` — сквозная нумерация формул «(N)» обычным
+  текстом (без полей SEQ, номер виден сразу, F9 не требуется).
+
+### Текст и правки
+
+- `search_and_replace`, `format_text`, `delete_paragraph`,
+  `insert_line_or_paragraph_near_text`, `insert_header_near_text`,
+  `replace_paragraph_block_below_header`,
+  `replace_block_between_manual_anchors`;
+- режим исправлений: `track_replace`, `track_insert`, `track_delete`,
+  `list_tracked_changes`, `accept_tracked_changes`,
+  `reject_tracked_changes`.
+
+### Таблицы
+
+- `docx_replace_table` — замена таблицы целиком новой из
+  markdown-разметки;
+- форматирование: `format_table`, `set_table_cell_shading`,
+  `apply_table_alternating_rows`, `highlight_table_header`,
+  `set_table_cell_alignment`, `format_table_cell_text`,
+  `set_table_cell_padding`;
+- объединение ячеек: `merge_table_cells`,
+  `merge_table_cells_horizontal`, `merge_table_cells_vertical`;
+- ширина: `set_table_column_width(s)`, `set_table_width`,
+  `auto_fit_table_columns`.
+
+### Оформление
+
+- колонтитулы и нумерация страниц: `add_header_footer`,
+  `add_page_numbers`, `set_page_layout`, `add_section_break`,
+  `add_watermark`;
+- оглавление `add_table_of_contents`, закладки `add_bookmark`;
+- подписи и ссылки: `docx_caption` (нумерация таблиц и рисунков),
+  `docx_crossref` (поля REF/PAGEREF), `docx_docproperty`
+  (DOCPROPERTY-поля);
+- выделение цветом `docx_highlight` (поиск и перекраска),
+  смена шрифта `docx_replace_font`;
+- сноски и концевые сноски, комментарии, гиперссылки,
+  пользовательские стили `create_custom_style`.
+
+### Защита
+
+- `protect_document`, `unprotect_document`,
+  `add_restricted_editing`, `add_digital_signature`,
+  `verify_document`.
+
+### Режим live-редактирования (Windows)
+
+Инструменты `word_live_*` управляют открытым документом в Microsoft
+Word через COM-интерфейс: вставка и форматирование текста, таблицы,
+закладки, перекрёстные ссылки, ревизии, снимки и откат. Работают
+только в среде Windows с установленным Microsoft Word; в Linux
+недоступны.
+
+## Архитектура
+
+```
+MCP-клиент → Streamable HTTP (порт 9113) → FastMCP (stateless)
+   → рабочий каталог /tmp/doc-editor
+   → источники файлов:
+       - S3-совместимое хранилище (rustfs), ключ из таблицы files БД LobeChat
+       - HTTPS-ссылка
+   → docx_commit: загрузка в rustfs → https://…/doc-editor/<uuid>-<имя>
+```
+
+Сервер не хранит состояние между вызовами: открытый файл задаётся
+путем в аргументах инструментов либо запоминается для текущей сессии.
+Снимки для `docx_undo` хранятся в `/tmp/doc-editor/snapshots`.
+
+## Требования
+
+- Python 3.12;
+- pandoc (конвертация LaTeX ↔ OMML и markdown → docx);
+- anymd (чтение PDF/XLSX/PPTX/HTML в Markdown);
+- PostgreSQL с таблицей `files` LobeChat (поиск файлов по id/имени);
+- S3-совместимое хранилище (rustfs).
+
+## Переменные окружения
+
+| Переменная | Назначение |
 |---|---|
-| `docx_open` / `docx_commit` / `docx_undo` | Вложение чата (`file_...`), https-ссылка или имя файла из БЗ → рабочий каталог; результат → rustfs → https-ссылка + sha256; снапшоты/откат |
-| `docx_formula` | Нативные формулы OMML: list / insert / replace / replace_cell / delete / clear_cell (LaTeX ↔ OMML через pandoc). Display-формулы — таблицы-врезки 1×2 (по центру + номер справа) |
-| `docx_number_formulas` | Сквозная нумерация display-формул простым текстом «(N)» (без SEQ-полей, F9 не нужен); legacy-абзацы мигрируют во врезки |
-| `docx_append_block` | Добавление раздела (заголовки + абзацы + формулы) в конец документа одним вызовом |
-| `docx_read` / `file_read` | Структурное чтение (индексы согласованы с тулами правок) / любой файл (PDF, XLSX, PPTX, HTML) как Markdown через anymd |
-| `docx_create` / `docx_build` / `docx_fill` | Пустой документ / сборка из pandoc-markdown (toc, number_sections, врезки формул) / заполнение шаблона docxtpl |
-| СПДС-утилиты | `docx_highlight`, `docx_caption`, `docx_crossref`, `docx_docproperty`, `docx_replace_font`, `docx_replace_table` |
+| `MCP_TRANSPORT` | Транспорт: `streamable-http` (по умолчанию) или `sse` |
+| `MCP_HOST`, `MCP_PORT`, `MCP_PATH` | Адрес и путь сервера (по умолчанию `0.0.0.0:9113/sse`) |
+| `MCP_AUTHOR`, `MCP_AUTHOR_INITIALS` | Автор изменений (track changes, комментарии) |
+| `PGHOST`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` | База данных LobeChat |
+| `RUSTFS_HOST`, `RUSTFS_BUCKET` | Хранилище файлов |
+| `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | Доступ к хранилищу |
+| `PUBLIC_BASE_URL` | База публичных ссылок (по умолчанию `https://xais.ru`) |
+| `S3_KEY_PREFIX` | Префикс ключей при сохранении (по умолчанию `doc-editor`) |
+| `WORK_DIR` | Рабочий каталог (по умолчанию `/tmp/doc-editor`) |
+| `REFERENCE_DOCX` | Эталон стилей pandoc для `docx_build` |
 
-## Развёртывание (Docker, Linux)
+## Запуск
+
+Сборка образа:
 
 ```bash
 docker build -t docx-mcp .
-# systemd-юнит: doc-editor.service (пример из нашего деплоя)
+```
+
+Запуск контейнера:
+
+```bash
 docker run --name docx-mcp --restart unless-stopped \
   -p 127.0.0.1:9113:9113 \
-  -e MCP_TRANSPORT=streamable-http -e MCP_HOST=0.0.0.0 -e MCP_PORT=9113 \
-  -e MCP_PATH=/sse -e MCP_AUTHOR=... \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 -e MCP_PORT=9113 -e MCP_PATH=/sse \
+  -e PGHOST=<host> -e PGDATABASE=lobechat -e PGUSER=<user> \
+  -e PGPASSWORD=<password> \
+  -e RUSTFS_HOST=<host> -e RUSTFS_BUCKET=<bucket> \
+  -e RUSTFS_ACCESS_KEY=<key> -e RUSTFS_SECRET_KEY=<secret> \
   docx-mcp:latest
 ```
 
-Требования: доступ к БД LobeChat (PostgreSQL, таблица `files`) и rustfs (S3) —
-переменные `PGHOST/PGDATABASE/PGUSER/PGPASSWORD` и `RUSTFS_*` (см. `doc-editor.service`).
+Пример systemd-юнита — в файле `doc-editor.service`.
 
-## Технологии
+## Подключение к MCP-клиенту
 
-- python-docx + lxml (OOXML), pandoc (LaTeX ↔ OMML, markdown → docx)
-- FastMCP (streamable-http, stateless), anymd, docxtpl
+```json
+{
+  "mcpServers": {
+    "docx-mcp": {
+      "url": "http://127.0.0.1:9113/sse"
+    }
+  }
+}
+```
+
+## Лицензия
+
+MIT. Код основан на проектах
+[word-mcp-live](https://github.com/ykarapazar/word-mcp-live) и
+[Office-Word-MCP-Server](https://github.com/GongRzhe/Office-Word-MCP-Server)
+(MIT); их авторство сохранено в LICENSE.
