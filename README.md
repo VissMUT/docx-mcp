@@ -108,16 +108,102 @@ Word через COM-интерфейс: вставка и форматирова
 только в среде Windows с установленным Microsoft Word; в Linux
 недоступны.
 
+## Примеры
+
+### Сборка документа из markdown
+
+`docx_build` принимает текст в диалекте pandoc: таблицы,
+формулы `$...$` (в строке) и `$$...$$` (отдельной строкой),
+разрыв страницы `\newpage`.
+
+```markdown
+# Пояснительная записка
+
+## Исходные данные
+
+| Параметр | Значение |
+|---|---|
+| Напряжение питания | 24 В |
+| Коэффициент запаса | 1,2 |
+
+## Расчет
+
+Суммарный ток нагрузки:
+
+$$I = \frac{P}{U} = \frac{122}{24} \approx 5{,}1\ \text{А}$$
+```
+
+```json
+{"ok": true, "filename": "/tmp/doc-editor/pz.docx",
+ "info": {"paragraphs": 12, "tables": 2, "formulas": 1, "sections": 1}}
+```
+
+Параметры `toc=true` (оглавление) и `number_sections=true`
+(нумерация заголовков) включаются при необходимости. Display-формулы
+автоматически оформляются врезками: формула по центру, номер справа.
+
+### Добавление раздела с формулами
+
+`docx_append_block` добавляет заголовки, абзацы и формулы в конец
+документа одним вызовом:
+
+```json
+[
+  {"type": "heading", "level": 2,
+   "text": "Расчет источника бесперебойного питания"},
+  {"type": "p", "text": "Суммарная мощность нагрузки:"},
+  {"type": "formula", "latex": "P_n = \\sum_i P_i", "display": true},
+  {"type": "p", "text": "Принимаем АКБ 24 В, 9 А·ч."}
+]
+```
+
+```json
+{"ok": true, "paragraphs_added": 3, "formulas_added": 1}
+```
+
+После изменения состава формул выполняется `docx_number_formulas()`:
+номера «(N)» проставляются обычным текстом в правой ячейке врезки.
+
+### Правка существующего документа
+
+1. `docx_open(file_XXXX)` — открыть вложение чата, HTTPS-ссылку
+   или файл по имени из базы LobeChat;
+2. `docx_read(scope="structure")` — получить карту документа
+   (секции, заголовки, таблицы, поля);
+3. `search_and_replace("старый текст", "новый текст")` — внести правку;
+4. `docx_commit()` — сохранить результат; в ответе возвращается
+   публичная ссылка и контрольная сумма:
+
+```json
+{"ok": true, "url": "https://xais.ru/lobe/doc-editor/3f2a1c00-pz.docx",
+ "file": "pz.docx", "sha256": "a4a9c67062decfcb8d83054bcf66b7a59de59f628ec4215d45f7dd3b100f1888",
+ "size": 12720}
+```
+
+### Режим исправлений
+
+Для согласования изменений используются инструменты `track_replace`,
+`track_insert`, `track_delete`. Завершение цикла правок:
+
+```json
+{"success": true, "accepted": 20}
+```
+
+`accept_tracked_changes()` принимает все исправления,
+`reject_tracked_changes()` отклоняет их, `list_tracked_changes()`
+возвращает перечень с авторами и датами.
+
 ## Архитектура
 
-```
-MCP-клиент → Streamable HTTP (порт 9113) → FastMCP (stateless)
-   → рабочий каталог /tmp/doc-editor
-   → источники файлов:
-       - S3-совместимое хранилище (rustfs), ключ из таблицы files БД LobeChat
-       - HTTPS-ссылка
-   → docx_commit: загрузка в rustfs → https://…/doc-editor/<uuid>-<имя>
-```
+MCP-клиент обращается к серверу по Streamable HTTP (порт 9113, FastMCP
+в stateless-режиме). Обработка выполняется в рабочем каталоге
+`/tmp/doc-editor`.
+
+- Источник файла: S3-совместимое хранилище (rustfs, ключ из таблицы
+  `files` базы LobeChat) или HTTPS-ссылка.
+- Сохранение результата (`docx_commit`): загрузка в rustfs (bucket
+  `lobe`) по ключу `doc-editor/<uuid>-<имя>`, публичная ссылка имеет
+  вид `https://<PUBLIC_BASE_URL>/lobe/doc-editor/<uuid>-<имя>`.
 
 Сервер не хранит состояние между вызовами: открытый файл задаётся
 путем в аргументах инструментов либо запоминается для текущей сессии.
@@ -126,7 +212,7 @@ MCP-клиент → Streamable HTTP (порт 9113) → FastMCP (stateless)
 ## Требования
 
 - Python 3.12;
-- pandoc (конвертация LaTeX ↔ OMML и markdown → docx);
+- pandoc (конвертация LaTeX в OMML и markdown в docx);
 - anymd (чтение PDF/XLSX/PPTX/HTML в Markdown);
 - PostgreSQL с таблицей `files` LobeChat (поиск файлов по id/имени);
 - S3-совместимое хранилище (rustfs).
