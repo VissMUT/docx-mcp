@@ -117,24 +117,24 @@ Word через COM-интерфейс: вставка и форматирова
 разрыв страницы `\newpage`.
 
 ```markdown
-# Пояснительная записка
+# Отчет
 
 ## Исходные данные
 
-| Параметр | Значение |
+| Показатель | Значение |
 |---|---|
-| Напряжение питания | 24 В |
-| Коэффициент запаса | 1,2 |
+| Объем выборки | 120 |
+| Период наблюдения | январь-март |
 
 ## Расчет
 
-Суммарный ток нагрузки:
+Среднее значение:
 
-$$I = \frac{P}{U} = \frac{122}{24} \approx 5{,}1\ \text{А}$$
+$$\bar{x} = \frac{1}{n} \sum_{i=1}^{n} x_i$$
 ```
 
 ```json
-{"ok": true, "filename": "/tmp/doc-editor/pz.docx",
+{"ok": true, "filename": "/tmp/doc-editor/report.docx",
  "info": {"paragraphs": 12, "tables": 2, "formulas": 1, "sections": 1}}
 ```
 
@@ -149,11 +149,10 @@ $$I = \frac{P}{U} = \frac{122}{24} \approx 5{,}1\ \text{А}$$
 
 ```json
 [
-  {"type": "heading", "level": 2,
-   "text": "Расчет источника бесперебойного питания"},
-  {"type": "p", "text": "Суммарная мощность нагрузки:"},
-  {"type": "formula", "latex": "P_n = \\sum_i P_i", "display": true},
-  {"type": "p", "text": "Принимаем АКБ 24 В, 9 А·ч."}
+  {"type": "heading", "level": 2, "text": "Анализ данных"},
+  {"type": "p", "text": "Среднее значение по выборке:"},
+  {"type": "formula", "latex": "\\bar{x} = \\frac{1}{n} \\sum_{i=1}^{n} x_i", "display": true},
+  {"type": "p", "text": "Результат округляется до двух знаков после запятой."}
 ]
 ```
 
@@ -175,9 +174,8 @@ $$I = \frac{P}{U} = \frac{122}{24} \approx 5{,}1\ \text{А}$$
    публичная ссылка и контрольная сумма:
 
 ```json
-{"ok": true, "url": "https://xais.ru/lobe/doc-editor/3f2a1c00-pz.docx",
- "file": "pz.docx", "sha256": "a4a9c67062decfcb8d83054bcf66b7a59de59f628ec4215d45f7dd3b100f1888",
- "size": 12720}
+{"ok": true, "url": "https://<host>/<bucket>/doc-editor/<uuid>-report.docx",
+ "file": "report.docx", "sha256": "<sha256>", "size": 12720}
 ```
 
 ### Режим исправлений
@@ -227,7 +225,7 @@ MCP-клиент обращается к серверу по Streamable HTTP (п
 | `PGHOST`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` | База данных LobeChat |
 | `RUSTFS_HOST`, `RUSTFS_BUCKET` | Хранилище файлов |
 | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | Доступ к хранилищу |
-| `PUBLIC_BASE_URL` | База публичных ссылок (по умолчанию `https://xais.ru`) |
+| `PUBLIC_BASE_URL` | База публичных ссылок (адрес, с которого доступно хранилище) |
 | `S3_KEY_PREFIX` | Префикс ключей при сохранении (по умолчанию `doc-editor`) |
 | `WORK_DIR` | Рабочий каталог (по умолчанию `/tmp/doc-editor`) |
 | `REFERENCE_DOCX` | Эталон стилей pandoc для `docx_build` |
