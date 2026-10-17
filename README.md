@@ -18,87 +18,109 @@ MCP-сервер для работы с документами Microsoft Word (.
 
 ### Документы
 
-- `docx_open` — открыть документ из вложения, HTTPS-ссылки или по имени
-  файла из базы данных LobeChat; возвращает путь, используемый остальными
-  инструментами;
-- `docx_commit` — сохранить результат в хранилище и вернуть
-  HTTPS-ссылку с контрольной суммой sha256;
-- `docx_undo` — откат к последнему снимку (снимки создаются при
-  открытии и фиксации);
-- `docx_read` — структурное чтение: секции и поля, дерево заголовков,
-  диапазоны абзацев с индексами, сетка таблиц, колонтитулы, изображения;
-- `file_read` — чтение произвольных файлов (PDF, DOCX, XLSX, PPTX,
-  EPUB, HTML, изображения) в Markdown;
-- `create_document`, `copy_document`, `list_available_documents`,
-  `get_document_info`, `get_document_text`, `get_document_outline`,
-  `merge_documents`, `convert_to_pdf`.
+| Инструмент | Назначение |
+|---|---|
+| `docx_open` | Открыть документ из вложения, HTTPS-ссылки или по имени файла из базы LobeChat |
+| `docx_commit` | Сохранить результат в хранилище, вернуть ссылку и контрольную сумму sha256 |
+| `docx_undo` | Откат к последнему снимку |
+| `docx_read` | Структурное чтение: секции, поля, заголовки, абзацы с индексами, таблицы, колонтитулы, изображения |
+| `file_read` | Чтение PDF, DOCX, XLSX, PPTX, EPUB, HTML и изображений в Markdown |
+| `create_document` | Новый документ с метаданными |
+| `copy_document` | Копия документа |
+| `list_available_documents` | Список документов в каталоге |
+| `get_document_info` | Свойства и статистика документа |
+| `get_document_text` | Полный текст документа |
+| `get_document_outline` | Структура документа (заголовки) |
+| `merge_documents` | Объединение нескольких документов |
+| `convert_to_pdf` | Конвертация в PDF |
 
 ### Генерация
 
-- `docx_build` — сборка документа из pandoc-markdown (таблицы,
-  формулы `$...$` / `$$...$$`, оглавление, нумерация заголовков,
-  добавление разделов через `append`);
-- `docx_create` — пустой документ с базовым оформлением
-  (Times New Roman 12, поля, номер страницы в колонтитуле);
-- `docx_fill` — заполнение шаблона docxtpl (переменные `{{var}}`,
-  циклы, условия) из JSON;
-- `docx_append_block` — добавление блока (заголовки, абзацы, формулы)
-  в конец документа одним вызовом;
-- `add_heading`, `add_paragraph`, `add_table`, `add_picture`,
-  `add_page_break`, списки (`insert_numbered_list_near_text`).
+| Инструмент | Назначение |
+|---|---|
+| `docx_build` | Сборка документа из pandoc-markdown: таблицы, формулы, оглавление, нумерация заголовков, добавление разделов через `append` |
+| `docx_create` | Пустой документ с базовым оформлением (шрифт, поля, номер страницы в колонтитуле) |
+| `docx_fill` | Заполнение шаблона docxtpl (переменные, циклы, условия) из JSON |
+| `docx_append_block` | Блок (заголовки, абзацы, формулы) в конец документа одним вызовом |
+| `add_heading` | Заголовок уровня 1–9 |
+| `add_paragraph` | Абзац |
+| `add_table` | Таблица из данных |
+| `add_picture` | Изображение с масштабированием |
+| `add_page_break` | Разрыв страницы |
+| `insert_numbered_list_near_text` | Маркированный или нумерованный список |
+| `insert_line_or_paragraph_near_text` | Строка или абзац до/после указанного текста |
+| `insert_header_near_text` | Заголовок до/после указанного текста |
 
 ### Формулы
 
-- `docx_formula` — нативные формулы Word (OMML), LaTeX-нотация;
-  операции: список, вставка (в тело документа или в ячейку таблицы),
-  замена, удаление, очистка ячейки;
-- display-формулы оформляются таблицами-врезками 1×2 без границ:
-  формула по центру, номер — справа;
-- `docx_number_formulas` — сквозная нумерация формул «(N)» обычным
-  текстом (без полей SEQ, номер виден сразу, F9 не требуется).
+| Инструмент | Назначение |
+|---|---|
+| `docx_formula` | Нативные формулы Word (OMML) в LaTeX-нотации: список, вставка (в тело документа или в ячейку таблицы), замена, удаление, очистка ячейки |
+| `docx_number_formulas` | Сквозная нумерация формул «(N)» обычным текстом (без полей SEQ, F9 не требуется) |
+
+Display-формулы оформляются таблицами-врезками 1×2 без границ:
+формула по центру, номер справа.
 
 ### Текст и правки
 
-- `search_and_replace`, `format_text`, `delete_paragraph`,
-  `insert_line_or_paragraph_near_text`, `insert_header_near_text`,
-  `replace_paragraph_block_below_header`,
-  `replace_block_between_manual_anchors`;
-- режим исправлений: `track_replace`, `track_insert`, `track_delete`,
-  `list_tracked_changes`, `accept_tracked_changes`,
-  `reject_tracked_changes`.
+| Инструмент | Назначение |
+|---|---|
+| `search_and_replace` | Поиск и замена по всему документу |
+| `format_text` | Форматирование фрагмента текста (шрифт, начертание, цвет) |
+| `delete_paragraph` | Удаление абзаца по индексу |
+| `track_replace` / `track_insert` / `track_delete` | Правки в режиме исправлений |
+| `list_tracked_changes` | Список исправлений |
+| `accept_tracked_changes` / `reject_tracked_changes` | Принятие и отклонение исправлений |
+| `replace_paragraph_block_below_header` | Замена блока абзацев под заголовком |
+| `replace_block_between_manual_anchors` | Замена блока между ручными якорями |
+| `get_highlighted_text` | Текст с маркерной подсветкой |
+| `find_text_in_document` | Поиск с учётом регистра и целых слов |
+| `get_paragraph_text_from_document` | Текст абзаца по индексу |
+| `create_custom_style` | Пользовательский стиль |
 
 ### Таблицы
 
-- `docx_replace_table` — замена таблицы целиком новой из
-  markdown-разметки;
-- форматирование: `format_table`, `set_table_cell_shading`,
-  `apply_table_alternating_rows`, `highlight_table_header`,
-  `set_table_cell_alignment`, `format_table_cell_text`,
-  `set_table_cell_padding`;
-- объединение ячеек: `merge_table_cells`,
-  `merge_table_cells_horizontal`, `merge_table_cells_vertical`;
-- ширина: `set_table_column_width(s)`, `set_table_width`,
-  `auto_fit_table_columns`.
+| Инструмент | Назначение |
+|---|---|
+| `docx_replace_table` | Замена таблицы целиком новой из markdown-разметки |
+| `format_table` | Границы и стиль таблицы |
+| `set_table_cell_shading` | Заливка ячейки |
+| `apply_table_alternating_rows` | Чередование цветов строк |
+| `highlight_table_header` | Выделение строки заголовка |
+| `set_table_cell_alignment` / `set_table_alignment_all` | Горизонтальное и вертикальное выравнивание |
+| `format_table_cell_text` | Форматирование текста ячейки |
+| `set_table_cell_padding` | Внутренние отступы ячейки |
+| `merge_table_cells` / `merge_table_cells_horizontal` / `merge_table_cells_vertical` | Объединение ячеек |
+| `set_table_column_width` / `set_table_column_widths` | Ширина колонок |
+| `set_table_width` / `auto_fit_table_columns` | Ширина таблицы и автоподбор |
 
 ### Оформление
 
-- колонтитулы и нумерация страниц: `add_header_footer`,
-  `add_page_numbers`, `set_page_layout`, `add_section_break`,
-  `add_watermark`;
-- оглавление `add_table_of_contents`, закладки `add_bookmark`;
-- подписи и ссылки: `docx_caption` (нумерация таблиц и рисунков),
-  `docx_crossref` (поля REF/PAGEREF), `docx_docproperty`
-  (DOCPROPERTY-поля);
-- выделение цветом `docx_highlight` (поиск и перекраска),
-  смена шрифта `docx_replace_font`;
-- сноски и концевые сноски, комментарии, гиперссылки,
-  пользовательские стили `create_custom_style`.
+| Инструмент | Назначение |
+|---|---|
+| `add_header_footer` | Колонтитулы |
+| `add_page_numbers` | Номера страниц |
+| `add_table_of_contents` | Оглавление |
+| `add_bookmark` | Закладка |
+| `docx_caption` | Подписи таблиц и рисунков с автонумерацией |
+| `docx_crossref` | Перекрёстные ссылки (поля REF/PAGEREF) |
+| `docx_docproperty` | DOCPROPERTY-поля |
+| `docx_highlight` | Выделение текста цветом (поиск и перекраска) |
+| `docx_replace_font` | Смена шрифта по документу |
+| `set_page_layout` / `add_section_break` | Параметры страницы и разрывы разделов |
+| `add_watermark` | Водяной знак |
+| `add_footnote_*` / `add_endnote_*` | Сноски и концевые сноски |
+| `add_comment` / `get_all_comments` / `get_comments_by_author` / `get_comments_for_paragraph` | Комментарии |
+| `manage_hyperlinks` | Гиперссылки |
 
 ### Защита
 
-- `protect_document`, `unprotect_document`,
-  `add_restricted_editing`, `add_digital_signature`,
-  `verify_document`.
+| Инструмент | Назначение |
+|---|---|
+| `protect_document` / `unprotect_document` | Парольная защита документа |
+| `add_restricted_editing` | Ограничение редактирования отдельными разделами |
+| `add_digital_signature` | Цифровая подпись |
+| `verify_document` | Проверка защиты и подписи |
 
 ### Режим live-редактирования (Windows)
 
