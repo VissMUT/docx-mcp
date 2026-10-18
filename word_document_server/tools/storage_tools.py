@@ -242,9 +242,9 @@ def _iter_omath(doc):
         for ri, row in enumerate(tbl.rows):
             for ci, cell in enumerate(row.cells):
                 for p in cell.paragraphs:
-                    if id(p._p) in seen:
+                    if p._p in seen:
                         continue
-                    seen.add(id(p._p))
+                    seen.add(p._p)
                     for child in p._p:
                         if child.tag == '{%s}oMath' % M_NS:
                             out.append(('inline', child,
@@ -546,6 +546,7 @@ def docx_replace_table(table, markdown):
 def docx_formula(ops):
     """Формулы: list / insert (абзац или ячейка таблицы) / replace /
     replace_cell (замена содержимого ячейки таблицы на формулу) /
+    replace_text (абзац-маркер find → формула на его месте) /
     delete (удалить формулу по index из list) / clear_cell (очистить ячейку)."""
     if not isinstance(ops, list):
         ops = [ops]
@@ -685,6 +686,44 @@ def docx_formula(ops):
             target._p.append(deepcopy(om))
             results.append({'op': 'replace_cell', 'ok': True,
                             'table': ti, 'row': ri, 'col': ci})
+            continue
+
+        if kind == 'replace_text':
+            # заменить АБЗАЦ-МАРКЕР (find = его точный текст) на формулу.
+            # display=true — абзац заменяется врезкой 1x2 на его месте;
+            # false — математика встаёт в сам абзац (inline).
+            latex = op.get('latex', '')
+            display = bool(op.get('display', True))
+            find = (op.get('find') or '').strip()
+            if not find:
+                raise ValueError('replace_text: укажи find (текст абзаца-'
+                                 'маркера)')
+            om = _latex_to_omml(latex, display)
+            target = None
+            for p in doc.paragraphs:
+                if p.text.strip() == find:
+                    target = p
+                    break
+            if target is None:
+                for p in doc.paragraphs:
+                    if find in p.text:
+                        target = p
+                        break
+            if target is None:
+                raise ValueError('абзац с текстом «%s» не найден' % find)
+            if display:
+                tbl = _formula_table(om, doc)
+                target._p.addprevious(tbl)
+                target._p.getparent().remove(target._p)
+                mode = 'table'
+            else:
+                for child in list(target._p):
+                    if child.tag != '{%s}pPr' % W_NS:
+                        target._p.remove(child)
+                target._p.append(deepcopy(om))
+                mode = 'inline'
+            results.append({'op': 'replace_text', 'find': find, 'ok': True,
+                            'mode': mode})
             continue
 
         if kind == 'delete':

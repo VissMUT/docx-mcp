@@ -83,7 +83,7 @@ def main():
     r = replace_block_between_manual_anchors(
         fname,
         "Энергетический расчёт резерва электропитания",
-        ["Новый абзац блока один.", "Новый абзац блока два."],
+        ["Новый абзац блока один.", "МАРКЕР_Ф1", "Новый абзац блока два."],
         "Обоснование применения радиоканала",
     )
     check("replace_block_between_manual_anchors", "not found" not in r, r[:120])
@@ -125,6 +125,19 @@ def main():
     # 8. docx_number_formulas
     r8 = st.docx_number_formulas(filename=fname)
     check("docx_number_formulas", isinstance(r8, dict) and r8.get("ok"), str(r8)[:120])
+
+    # 8b. docx_formula replace_text: абзац-маркер → формула на его месте
+    r8b = st.docx_formula(
+        [{"op": "replace_text", "find": "МАРКЕР_Ф1",
+          "latex": "Q=\\frac{P_{деж} \\cdot t_{деж}}{U}", "display": True}]
+    )
+    ok8b = isinstance(r8b, dict) and r8b.get("ok") and r8b["results"][0].get("ok")
+    check("docx_formula replace_text", ok8b, str(r8b)[:120])
+    r8c = st.docx_read(scope="paragraphs", filename=fname, start=0, end=99)
+    marker_left = any("МАРКЕР_Ф1" in p["text"] for p in r8c.get("paragraphs", []))
+    check("marker gone after replace_text", not marker_left)
+    r8d = st.docx_formula([{"op": "list"}])
+    check("formula visible in list", isinstance(r8d, dict) and r8d.get("ok") and r8d["results"][0]["formulas"], str(r8d)[:120])
 
     # 9. docx_highlight: поиск + перекраска
     r9 = st.docx_highlight(text="Новый текст после заголовка", color="yellow", filename=fname)
