@@ -15,6 +15,19 @@ from word_document_server.utils.file_utils import check_file_writeable, ensure_d
 from word_document_server.utils.document_utils import find_and_replace_text, insert_header_near_text, insert_numbered_list_near_text, insert_line_or_paragraph_near_text, replace_paragraph_block_below_header, replace_block_between_manual_anchors
 from word_document_server.core.styles import ensure_heading_style, ensure_table_style
 
+_WORK_DIR = os.environ.get('WORK_DIR', '/tmp/doc-editor')
+
+
+def _res_file(filename):
+    """Bare-имя файла (без каталога, как в ответе docx_open) → путь в
+    рабочем каталоге doc-editor. Абсолютные и существующие пути не трогаем."""
+    if not filename:
+        return filename
+    if os.path.isabs(filename) or os.path.exists(filename):
+        return filename
+    cand = os.path.join(_WORK_DIR, os.path.basename(filename))
+    return cand if os.path.exists(cand) else filename
+
 
 async def add_heading(filename: str, text: str, level: int = 1,
                       font_name: Optional[str] = None, font_size: Optional[int] = None,
@@ -32,6 +45,7 @@ async def add_heading(filename: str, text: str, level: int = 1,
         italic: True/False for italic text
         border_bottom: True to add bottom border (for section headers)
     """
+    filename = _res_file(filename)
     filename = ensure_docx_extension(filename)
 
     # Ensure level is converted to integer
@@ -129,6 +143,7 @@ async def add_paragraph(filename: str, text: str, style: Optional[str] = None,
         italic: True/False for italic text
         color: RGB color as hex string (e.g., '000000' for black)
     """
+    filename = _res_file(filename)
     filename = ensure_docx_extension(filename)
 
     if not os.path.exists(filename):
@@ -185,6 +200,7 @@ async def add_table(filename: str, rows: int, cols: int, data: Optional[List[Lis
         cols: Number of columns in the table
         data: Optional 2D array of data to fill the table
     """
+    filename = _res_file(filename)
     filename = ensure_docx_extension(filename)
     
     if not os.path.exists(filename):
@@ -318,6 +334,7 @@ async def add_table_of_contents(filename: str, title: str = "Table of Contents",
         title: Optional title for the table of contents
         max_level: Maximum heading level to include (1-9)
     """
+    filename = _res_file(filename)
     filename = ensure_docx_extension(filename)
     
     if not os.path.exists(filename):
@@ -407,6 +424,7 @@ async def delete_paragraph(filename: str, paragraph_index: int) -> str:
         filename: Path to the Word document
         paragraph_index: Index of the paragraph to delete (0-based)
     """
+    filename = _res_file(filename)
     filename = ensure_docx_extension(filename)
     
     if not os.path.exists(filename):
@@ -445,6 +463,7 @@ async def search_and_replace(filename: str, find_text: str, replace_text: str) -
         find_text: Text to search for
         replace_text: Text to replace with
     """
+    filename = _res_file(filename)
     filename = ensure_docx_extension(filename)
     
     if not os.path.exists(filename):
@@ -473,25 +492,30 @@ async def search_and_replace(filename: str, find_text: str, replace_text: str) -
 
 async def insert_header_near_text_tool(filename: str, target_text: str = None, header_title: str = "", position: str = 'after', header_style: str = 'Heading 1', target_paragraph_index: int = None) -> str:
     """Insert a header (with specified style) before or after the target paragraph. Specify by text or paragraph index."""
+    filename = _res_file(filename)
     async with get_file_lock(filename):
         return insert_header_near_text(filename, target_text, header_title, position, header_style, target_paragraph_index)
 
 async def insert_numbered_list_near_text_tool(filename: str, target_text: str = None, list_items: list = None, position: str = 'after', target_paragraph_index: int = None, bullet_type: str = 'bullet') -> str:
     """Insert a bulleted or numbered list before or after the target paragraph. Specify by text or paragraph index."""
+    filename = _res_file(filename)
     async with get_file_lock(filename):
         return insert_numbered_list_near_text(filename, target_text, list_items, position, target_paragraph_index, bullet_type)
 
 async def insert_line_or_paragraph_near_text_tool(filename: str, target_text: str = None, line_text: str = "", position: str = 'after', line_style: str = None, target_paragraph_index: int = None) -> str:
     """Insert a new line or paragraph (with specified or matched style) before or after the target paragraph. Specify by text or paragraph index."""
+    filename = _res_file(filename)
     async with get_file_lock(filename):
         return insert_line_or_paragraph_near_text(filename, target_text, line_text, position, line_style, target_paragraph_index)
 
 async def replace_paragraph_block_below_header_tool(filename: str, header_text: str, new_paragraphs: list, detect_block_end_fn=None) -> str:
     """Reemplaza el bloque de párrafos debajo de un encabezado, evitando modificar TOC."""
+    filename = _res_file(filename)
     async with get_file_lock(filename):
         return replace_paragraph_block_below_header(filename, header_text, new_paragraphs, detect_block_end_fn)
 
 async def replace_block_between_manual_anchors_tool(filename: str, start_anchor_text: str, new_paragraphs: list, end_anchor_text: str = None, match_fn=None, new_paragraph_style: str = None) -> str:
     """Replace all content between start_anchor_text and end_anchor_text (or next logical header if not provided)."""
+    filename = _res_file(filename)
     async with get_file_lock(filename):
         return replace_block_between_manual_anchors(filename, start_anchor_text, new_paragraphs, end_anchor_text, match_fn, new_paragraph_style)
