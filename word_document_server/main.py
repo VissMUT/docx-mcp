@@ -2005,6 +2005,51 @@ def register_tools():
 
     @mcp.tool(
         annotations=ToolAnnotations(
+            title="Get Upload Link for Any File",
+        ),
+        description=(
+            "Отдать в чат ЛЮБОЙ локальный файл (xlsx, pdf, dwg, png, zip, ...). "
+            "Файл сам не читает: возвращает upload_url и public_url. "
+            "Порядок: 1) вызови file_presign(filename, local_path) — если передать "
+            "локальный путь, вернётся готовое поле curl_command; 2) выполни эту "
+            "команду в локальном shell (curl.exe -X PUT -T \"<путь>\" "
+            "\"<upload_url>\") или собери её по curl_example; 3) код ответа 200 = "
+            "файл загружен — отдай пользователю public_url. Для файлов больше "
+            "100 МБ используй upload_url_direct (обход лимита Cloudflare). "
+            "upload_url пользователю не показывай."
+        ),
+    )
+    def file_presign(filename: str, content_type: str = None,
+                     expires_in: int = None, local_path: str = None) -> str:
+        """Отдать в чат ЛЮБОЙ локальный файл (xlsx, pdf, dwg, png, zip, ...).
+
+        Инструмент не читает файл сам: он возвращает временную ссылку, по
+        которой файл с устройства агента загружается в хранилище и становится
+        доступен пользователю по https.
+
+        Как пользоваться:
+          1) вызови file_presign(filename, local_path) — вернётся JSON с
+             upload_url, public_url и (если передан путь) готовым curl_command;
+          2) выполни в локальном shell curl_command, либо собери команду по
+             curl_example (curl.exe -X PUT -T "<локальный путь>" "<upload_url>");
+          3) код ответа 200 = файл загружен, отдай пользователю public_url.
+        Для файлов больше 100 МБ используй upload_url_direct (обход лимита
+        Cloudflare). upload_url пользователю не показывай.
+
+        Аргументы:
+            filename: имя файла или полный путь (кириллица сохраняется).
+            content_type: необязательный MIME (если задан, curl должен
+            отправить такой же Content-Type).
+            expires_in: срок жизни ссылки в секундах (по умолчанию 3600).
+            local_path: локальный путь файла на устройстве агента; нужен для
+            готовой команды curl_command (можно передать путь в filename).
+        """
+        return storage_tools._tool_json(
+            storage_tools.file_presign, filename, content_type, expires_in,
+            local_path)
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
             title="Document Formulas",
         ),
     )

@@ -25,6 +25,7 @@ import urllib.request
 import uuid
 import zipfile
 from copy import deepcopy
+from urllib.parse import quote
 
 from docx import Document
 from docx.oxml import OxmlElement
@@ -37,7 +38,11 @@ S3_BUCKET = os.environ.get('RUSTFS_BUCKET', 'lobe')
 S3_ACCESS_KEY = os.environ.get('RUSTFS_ACCESS_KEY', 'lobeadmin')
 S3_SECRET_KEY = os.environ.get('RUSTFS_SECRET_KEY', '')
 PUBLIC_BASE = os.environ.get('PUBLIC_BASE_URL', 'https://xais.ru')
+PUBLIC_ALT_BASE = os.environ.get('PUBLIC_ALT_BASE_URL',
+                                 'https://direct.xais.ru:8443')
 S3_KEY_PREFIX = os.environ.get('S3_KEY_PREFIX', 'doc-editor')
+SHARE_PREFIX = os.environ.get('SHARE_KEY_PREFIX', 'shared')
+PRESIGN_TTL = int(os.environ.get('PRESIGN_TTL', '3600'))
 MAX_BYTES = 300 * 1024 * 1024
 
 W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
@@ -60,6 +65,21 @@ def _safe(name):
     name = os.path.basename(
         re.sub(r'[^A-Za-z0-9._-]', '_', name or 'document.docx'))
     return name or 'document.docx'
+
+
+_BAD_NAME = re.compile(r'[\x00-\x1f<>:"/\\|?*]+')
+
+
+def _key_name(name):
+    """Имя файла -> ключ в rustfs (кириллица сохраняется, запрещенные
+    для Windows символы заменяются, путь отбрасывается)."""
+    name = re.split(r'[\\/]', (name or '').strip())[-1]
+    name = _BAD_NAME.sub('_', name).strip().strip('.')
+    name = re.sub(r'\s+', ' ', name)
+    if not name:
+        return 'file'
+    base, ext = os.path.splitext(name)
+    return (base[:80] or 'file') + ext[:20]
 
 
 def _rustfs_url(key):
@@ -499,6 +519,83 @@ def docx_commit(filename=None):
         'sha256': sha,
         'size': os.path.getsize(path),
     }
+
+
+def _presign_client(endpoint):
+    import boto3
+    from botocore.config import Config
+    return boto3.client(
+        's3', endpoint_url=endpoint,
+        aws_access_key_id=S3_ACCESS_KEY,
+        aws_secret_access_key=S3_SECRET_KEY,
+        region_name='us-east-1',
+        config=Config(signature_version='s3v4',
+                      s3={'addressing_style': 'path'}))
+
+
+def file_presign(filename, content_type=None, expires_in=None,
+                 local_path=None):
+    """Ссылка для загрузки ЛЮБОГО локального файла в чат (HTTP PUT).
+
+    Сам файл остаётся на устройстве агента: инструмент только выдаёт
+    одноразовый presigned-URL, по которому файл кладётся в хранилище
+    LobeChat (rustfs) и становится доступен по https-ссылке.
+
+    local_path — локальный путь файла на устройстве агента; если задан
+    (или filename сам содержит путь), возвращается готовая команда
+    curl_command.
+    """
+    src = re.split(r'[\\/]', (filename or '').strip())[-1]
+    if not src:
+        raise ValueError('укажи имя файла (или путь) — из него делается ключ')
+    ttl = int(expires_in or PRESIGN_TTL)
+    ttl = max(60, min(ttl, 7 * 24 * 3600))
+    key = '%s/%s-%s' % (SHARE_PREFIX, uuid.uuid4().hex[:8], _key_name(src))
+    params = {'Bucket': S3_BUCKET, 'Key': key}
+    if content_type:
+        params['ContentType'] = content_type
+    key_url = quote(key, safe='/')
+    res = {
+        'ok': True,
+        'method': 'PUT',
+        'key': key,
+        'file': src,
+        'expires_in': ttl,
+        'public_url': '%s/lobe/%s' % (PUBLIC_BASE, key_url),
+        'public_url_direct': '%s/lobe/%s' % (PUBLIC_ALT_BASE, key_url),
+    }
+    errors = []
+    for name, base in (('upload_url', PUBLIC_BASE),
+                       ('upload_url_direct', PUBLIC_ALT_BASE)):
+        try:
+            res[name] = _presign_client(base).generate_presigned_url(
+                'put_object', Params=params, ExpiresIn=ttl)
+        except Exception as e:  # noqa: BLE001
+            errors.append('%s: %s: %s' % (name, type(e).__name__, e))
+    if errors and 'upload_url' not in res:
+        raise RuntimeError('; '.join(errors))
+    if errors:
+        res['warnings'] = errors
+    header = ''
+    if content_type:
+        header = ' -H "Content-Type: %s"' % content_type
+    res['curl_example'] = (
+        'curl.exe -sS -X PUT -H "Expect:"%s -T "<локальный путь к файлу>" '
+        '"<upload_url>"' % header)
+    path_hint = local_path or (filename
+                               if re.search(r'[\\/]', filename or '') else '')
+    if path_hint:
+        res['local_path'] = path_hint
+        if 'upload_url' in res:
+            res['curl_command'] = (
+                'curl.exe -sS -X PUT -H "Expect:"%s -T "%s" "%s"'
+                % (header, path_hint, res['upload_url']))
+    res['hint'] = (
+        'Выполни curl в локальном shell (код 200 = файл загружен), затем '
+        'отдай пользователю public_url. upload_url и upload_url_direct — '
+        'служебные, пользователю их не показывай. Файлы больше 100 МБ '
+        'заливай через upload_url_direct (обход лимита Cloudflare).')
+    return res
 
 
 def docx_undo():
