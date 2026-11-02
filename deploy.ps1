@@ -6,6 +6,7 @@
 param([switch]$SkipTests)
 
 $ErrorActionPreference = 'Stop'
+if (-not $env:VM_SUDO_PASS) { throw 'VM_SUDO_PASS is not set' }
 $VM = 'v1smut@localhost'
 $VM_DIR = '/home/v1smut/doc-editor'
 $SSH = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no $VM"
@@ -46,10 +47,10 @@ $s = @"
 set -e
 cd $VM_DIR
 docker build -t doc-editor:latest . 2>&1 | tail -2
-echo '__REDACTED__' | sudo -S cp doc-editor.service /etc/systemd/system/doc-editor.service
-echo '__REDACTED__' | sudo -S systemctl daemon-reload
-echo '__REDACTED__' | sudo -S systemctl enable doc-editor.service
-echo '__REDACTED__' | sudo -S systemctl restart doc-editor.service
+printf '%s\n' '$env:VM_SUDO_PASS' | sudo -S cp doc-editor.service /etc/systemd/system/doc-editor.service
+printf '%s\n' '$env:VM_SUDO_PASS' | sudo -S systemctl daemon-reload
+printf '%s\n' '$env:VM_SUDO_PASS' | sudo -S systemctl enable doc-editor.service
+printf '%s\n' '$env:VM_SUDO_PASS' | sudo -S systemctl restart doc-editor.service
 sleep 12
 systemctl is-active doc-editor.service
 curl -s -o /dev/null -w 'http %{http_code}\n' http://127.0.0.1:9113/sse -m 10
